@@ -1,0 +1,557 @@
+# Project: Progress Notes from Laboratory Details
+
+## Objective
+
+You are a Senior Python, FastAPI, and Azure Cloud Engineer.
+
+Build Phase 1 of my healthcare AI project.
+
+The goal of this phase is ONLY to ingest laboratory reports into Azure Blob Storage.
+
+DO NOT implement OCR, Azure Document Intelligence, SQL Database, Neo4j, Vector DB, or Azure OpenAI.
+
+This phase should end after successfully uploading files to Azure Blob Storage.
+
+------------------------------------------------------------
+
+## Tech Stack
+
+- Python 3.12
+- FastAPI
+- Azure Storage Blob SDK
+- Pydantic
+- python-multipart
+- uvicorn
+
+I already have the Azure Extension installed in VS Code.
+
+Generate production-quality code.
+
+------------------------------------------------------------
+
+## Architecture
+
+Hospital User
+(Doctor / Nurse / Admin)
+
+↓
+
+POST /upload-reports
+
+↓
+
+FastAPI API
+
+↓
+
+Validate Patient ID
+
+↓
+
+Validate Admission ID
+
+↓
+
+Validate Uploaded Files
+
+↓
+
+Validate File Extensions
+
+↓
+
+Report Classification Service
+
+↓
+
+Read Filename
+
+↓
+
+Detect Report Type
+
+↓
+
+Extract Current Date
+
+↓
+
+Extract Current Time
+
+↓
+
+Generate Azure Blob Path
+
+↓
+
+Upload File to Azure Blob Storage
+
+↓
+
+Return JSON Response
+
+------------------------------------------------------------
+
+## Project Structure
+
+Create a clean architecture.
+
+app/
+
+    main.py
+
+    api/
+        upload.py
+
+    services/
+        validation_service.py
+        report_classifier.py
+        datetime_service.py
+        blob_service.py
+
+    utils/
+        blob_path_generator.py
+        constants.py
+
+    config/
+        settings.py
+
+    schemas/
+        response.py
+
+requirements.txt
+
+.env
+
+README.md
+
+------------------------------------------------------------
+
+## Upload Endpoint
+
+Create
+
+POST /upload-reports
+
+Accept multipart/form-data.
+
+Fields
+
+patient_id : string
+
+admission_id : string
+
+files : List[UploadFile]
+
+Support multiple file uploads.
+
+The endpoint must be asynchronous.
+
+------------------------------------------------------------
+
+## Patient Validation
+
+Validate
+
+patient_id
+
+Example
+
+P10001
+
+Validate
+
+admission_id
+
+Example
+
+Admission_001
+
+Reject
+
+empty values
+
+null values
+
+invalid characters
+
+Return HTTP 400 if validation fails.
+
+------------------------------------------------------------
+
+## File Validation
+
+Accept only
+
+.pdf
+
+.png
+
+.jpg
+
+.jpeg
+
+Reject everything else.
+
+Maximum size
+
+20 MB
+
+Return proper HTTP errors.
+
+------------------------------------------------------------
+
+## Report Classification
+
+Create report_classifier.py
+
+Determine report type ONLY from filename.
+
+Examples
+
+P001_CBC.pdf
+
+↓
+
+CBC
+
+P001_BMP.pdf
+
+↓
+
+BMP
+
+P001_LFT.pdf
+
+↓
+
+LFT
+
+Supported reports
+
+CBC
+
+BMP
+
+CMP
+
+LFT
+
+CRP
+
+ABG
+
+VBG
+
+Troponin
+
+Urinalysis
+
+BloodCulture
+
+UrineCulture
+
+If no report type matches
+
+Store inside
+
+UNKNOWN
+
+Do not use AI.
+
+Do not use OCR.
+
+------------------------------------------------------------
+
+## Date & Time
+
+Create datetime_service.py
+
+For Phase 1
+
+DO NOT extract date from report.
+
+Simply use current system date.
+
+Generate
+
+YYYY-MM-DD
+
+Generate current time
+
+HH-MM-AM
+
+Example
+
+2026-07-10
+
+09-15-AM
+
+Later this service will be replaced with Azure Document Intelligence.
+
+------------------------------------------------------------
+
+## Blob Path Generator
+
+Create blob_path_generator.py
+
+Generate
+
+patient_id/
+admission_id/
+report_type/
+date/
+time/
+filename
+
+Example
+
+P10001/
+Admission_001/
+CBC/
+2026-07-10/
+09-00-AM/
+P001_CBC.pdf
+
+Return the complete path.
+
+------------------------------------------------------------
+
+## Azure Blob Storage
+
+Use Azure Storage Blob SDK.
+
+Read
+
+AZURE_STORAGE_CONNECTION_STRING
+
+AZURE_CONTAINER_NAME
+
+from .env
+
+If container does not exist
+
+Create it.
+
+Upload files to Azure Blob Storage.
+
+Use overwrite=False.
+
+Return
+
+Blob URL
+
+Blob Name
+
+Blob Path
+
+------------------------------------------------------------
+
+## Upload Flow
+
+For every uploaded file
+
+Validate
+
+↓
+
+Read filename
+
+↓
+
+Determine report type
+
+↓
+
+Generate date
+
+↓
+
+Generate time
+
+↓
+
+Generate blob path
+
+↓
+
+Upload to Azure Blob Storage
+
+↓
+
+Collect upload result
+
+↓
+
+Return JSON
+
+------------------------------------------------------------
+
+## JSON Response
+
+{
+  "patient_id": "P10001",
+  "admission_id": "Admission_001",
+  "uploaded_files": [
+    {
+      "file_name": "P001_CBC.pdf",
+      "report_type": "CBC",
+      "blob_path": "P10001/Admission_001/CBC/2026-07-10/09-00-AM/P001_CBC.pdf",
+      "blob_url": "...",
+      "status": "Uploaded"
+    }
+  ]
+}
+
+------------------------------------------------------------
+
+## Logging
+
+Use Python logging.
+
+Log
+
+Upload started
+
+Validation success
+
+Report type detected
+
+Blob path generated
+
+Upload successful
+
+Upload failed
+
+------------------------------------------------------------
+
+## Error Handling
+
+400
+
+Invalid Patient ID
+
+400
+
+Invalid Admission ID
+
+400
+
+Unsupported file type
+
+413
+
+File exceeds maximum size
+
+500
+
+Azure Blob Storage upload failed
+
+Return meaningful error messages.
+
+------------------------------------------------------------
+
+## Swagger
+
+The API must work completely from
+
+http://localhost:8000/docs
+
+Allow uploading multiple reports directly from Swagger UI.
+
+------------------------------------------------------------
+
+## Coding Standards
+
+Use
+
+- SOLID Principles
+- Clean Architecture
+- Type Hints
+- Async FastAPI
+- Dependency Injection where appropriate
+- Separate Services
+- Pydantic Models
+- Proper Exception Handling
+- Reusable Utility Functions
+- Environment Variables
+- Docstrings
+- Comments
+
+------------------------------------------------------------
+
+## Requirements
+
+Generate
+
+requirements.txt
+
+Include
+
+fastapi
+
+uvicorn
+
+azure-storage-blob
+
+python-dotenv
+
+python-multipart
+
+pydantic
+
+------------------------------------------------------------
+
+## README
+
+Generate README.md
+
+Include
+
+Project setup
+
+Virtual environment
+
+Install dependencies
+
+Configure .env
+
+Run FastAPI
+
+Swagger URL
+
+Azure Blob configuration
+
+Folder structure
+
+Sample request
+
+Sample response
+
+------------------------------------------------------------
+
+## Future Design
+
+Keep the code modular so future phases can easily plug in
+
+Azure Document Intelligence
+
+Azure SQL Database
+
+Neo4j
+
+Vector Database
+
+Azure OpenAI
+
+Trend Analysis Engine
+
+without changing the upload API.
+
+------------------------------------------------------------
+
+Expected Deliverable
+
+Generate a complete, production-ready FastAPI backend for Phase 1.
+
+The code should be immediately runnable after configuring the Azure Storage connection string and container name.
