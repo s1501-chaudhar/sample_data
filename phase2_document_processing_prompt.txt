@@ -1,0 +1,547 @@
+# Project: Progress Notes from Laboratory Details
+
+## Phase 2 - Laboratory Report Processing Pipeline
+
+You are a Senior Python, Azure AI, and Healthcare Software Engineer.
+
+Build Phase 2 of my healthcare AI project.
+
+Phase 1 is already completed.
+
+Reports are already stored inside Azure Blob Storage.
+
+DO NOT build any frontend.
+
+The project is tested entirely using FastAPI Swagger UI.
+
+------------------------------------------------------------
+
+## Goal
+
+Build a complete document processing pipeline that:
+
+1. Reads laboratory reports from Azure Blob Storage.
+2. Uses Azure AI Document Intelligence.
+3. Performs OCR.
+4. Extracts tables.
+5. Extracts laboratory values.
+6. Cleans extracted data.
+7. Normalizes laboratory test names.
+8. Normalizes units.
+9. Generates a structured JSON.
+10. Saves the JSON locally.
+11. Converts the JSON into an Excel (.xlsx) file.
+12. Saves the Excel file locally.
+
+DO NOT implement SQL Database, Neo4j, Vector DB, Azure OpenAI, Trend Analysis, or Progress Notes in this phase.
+
+------------------------------------------------------------
+
+## Tech Stack
+
+Python 3.12
+
+FastAPI
+
+Azure AI Document Intelligence SDK
+
+Azure Blob Storage SDK
+
+Pandas
+
+OpenPyXL
+
+Pydantic
+
+python-dotenv
+
+------------------------------------------------------------
+
+## Project Structure
+
+app/
+
+    main.py
+
+    api/
+        process_reports.py
+
+    services/
+        blob_reader.py
+        document_intelligence_service.py
+        lab_parser.py
+        normalization_service.py
+        cleaning_service.py
+        validation_service.py
+        json_service.py
+        excel_service.py
+
+    utils/
+        mappings.py
+        constants.py
+
+    config/
+        settings.py
+
+    output/
+
+        json/
+
+        excel/
+
+requirements.txt
+
+README.md
+
+------------------------------------------------------------
+
+## Endpoint
+
+POST
+
+/process-reports
+
+Input
+
+patient_id
+
+admission_id
+
+The endpoint should:
+
+Read all reports belonging to
+
+patient_id
+
+and
+
+admission_id
+
+from Azure Blob Storage.
+
+------------------------------------------------------------
+
+## Read Reports
+
+Connect to Azure Blob Storage.
+
+Locate
+
+patient_id/
+
+admission_id/
+
+Download every report.
+
+Supported formats
+
+PDF
+
+PNG
+
+JPG
+
+JPEG
+
+------------------------------------------------------------
+
+## Azure AI Document Intelligence
+
+Use the latest Azure AI Document Intelligence SDK.
+
+For every report
+
+Perform OCR.
+
+Extract
+
+Text
+
+Tables
+
+Key-value pairs
+
+Confidence scores
+
+------------------------------------------------------------
+
+## Laboratory Parsing
+
+From the extracted tables identify laboratory values.
+
+Extract
+
+Test Name
+
+Result
+
+Unit
+
+Reference Range
+
+Flag
+
+Ignore
+
+Hospital logo
+
+Doctor names
+
+Address
+
+Phone number
+
+Headers
+
+Footers
+
+Page numbers
+
+Watermarks
+
+------------------------------------------------------------
+
+## Cleaning
+
+Remove
+
+Extra spaces
+
+Blank rows
+
+Duplicate rows
+
+Invalid characters
+
+OCR mistakes
+
+Example
+
+10,O
+
+↓
+
+10.0
+
+l8.5
+
+↓
+
+18.5
+
+O
+
+↓
+
+0
+
+Trim strings.
+
+Convert values to correct datatype.
+
+------------------------------------------------------------
+
+## Normalization
+
+Normalize laboratory names.
+
+Examples
+
+Hb
+
+HGB
+
+Hemoglobin
+
+↓
+
+Hemoglobin
+
+PLT
+
+Platelets
+
+↓
+
+Platelet Count
+
+WBC
+
+White Blood Cell
+
+↓
+
+WBC
+
+Normalize units.
+
+Example
+
+mg / dL
+
+↓
+
+mg/dL
+
+mmol / L
+
+↓
+
+mmol/L
+
+Normalize flags
+
+H
+
+High
+
+↑
+
+↓
+
+High
+
+L
+
+↓
+
+Low
+
+------------------------------------------------------------
+
+## Validation
+
+Every extracted row must contain
+
+Test Name
+
+Result
+
+Unit
+
+Reference Range (if available)
+
+Confidence Score
+
+Discard empty rows.
+
+------------------------------------------------------------
+
+## Structured JSON
+
+Generate
+
+One JSON file per report.
+
+Example
+
+{
+    "patient_id":"P10001",
+    "admission_id":"Admission_001",
+    "report_type":"CBC",
+    "report_date":"2026-07-10",
+    "tests":[
+        {
+            "test_name":"WBC",
+            "value":18.2,
+            "unit":"10^9/L",
+            "reference_low":4.5,
+            "reference_high":11,
+            "flag":"High",
+            "confidence":0.99
+        },
+        {
+            "test_name":"Hemoglobin",
+            "value":10.5,
+            "unit":"g/dL",
+            "reference_low":13,
+            "reference_high":17,
+            "flag":"Low",
+            "confidence":0.98
+        }
+    ]
+}
+
+Save JSON into
+
+output/json/
+
+------------------------------------------------------------
+
+## Excel Generation
+
+Convert every JSON into Excel.
+
+One worksheet.
+
+Columns
+
+Patient ID
+
+Admission ID
+
+Report Type
+
+Report Date
+
+Test Name
+
+Result
+
+Unit
+
+Reference Low
+
+Reference High
+
+Flag
+
+Confidence
+
+Save
+
+output/excel/
+
+Filename
+
+P10001_CBC_2026-07-10.xlsx
+
+------------------------------------------------------------
+
+## Logging
+
+Log
+
+Blob downloaded
+
+OCR started
+
+OCR completed
+
+Normalization completed
+
+JSON created
+
+Excel created
+
+------------------------------------------------------------
+
+## Error Handling
+
+Blob not found
+
+OCR failed
+
+Table extraction failed
+
+Invalid report
+
+Corrupted PDF
+
+Continue processing remaining reports.
+
+------------------------------------------------------------
+
+## Coding Standards
+
+Use
+
+SOLID Principles
+
+Clean Architecture
+
+Type Hints
+
+Pydantic Models
+
+Separate Services
+
+Async FastAPI
+
+Dependency Injection
+
+Reusable Functions
+
+Proper Exception Handling
+
+Docstrings
+
+Comments
+
+------------------------------------------------------------
+
+## Requirements
+
+Generate
+
+requirements.txt
+
+Include
+
+fastapi
+
+uvicorn
+
+azure-ai-documentintelligence
+
+azure-storage-blob
+
+python-dotenv
+
+pandas
+
+openpyxl
+
+pydantic
+
+------------------------------------------------------------
+
+## README
+
+Generate complete README
+
+Installation
+
+Azure configuration
+
+Run project
+
+Swagger URL
+
+Project structure
+
+Sample JSON
+
+Sample Excel
+
+------------------------------------------------------------
+
+## Expected Result
+
+When I call
+
+POST /process-reports
+
+The application should
+
+1. Read all reports from Azure Blob Storage.
+
+2. Process them using Azure AI Document Intelligence.
+
+3. Extract laboratory values.
+
+4. Clean extracted values.
+
+5. Normalize test names.
+
+6. Normalize units.
+
+7. Generate structured JSON.
+
+8. Save JSON into output/json/
+
+9. Generate Excel file.
+
+10. Save Excel into output/excel/
+
+The generated code should be production-ready and modular so that Phase 3 can later add SQL Database, Trend Analysis, Neo4j, Vector DB, and Azure OpenAI without changing the extraction pipeline.
