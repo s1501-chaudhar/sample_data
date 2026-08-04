@@ -1,0 +1,389 @@
+I want to redesign and refactor the entire application architecture to make it production-ready, scalable, and completely dynamic.
+
+IMPORTANT:
+Do NOT start implementing anything immediately.
+
+First, perform a complete architecture review and identify every limitation, bottleneck, scalability issue, performance issue, database issue, and business logic issue.
+
+Think like a Principal Software Engineer, Solution Architect, and Healthcare Architect.
+
+===========================================================
+PART 1 — CURRENT LIMITATIONS
+===========================================================
+
+Review the entire application and identify every issue.
+
+Examples (not limited to these):
+
+• Application is currently designed around a fixed synthetic dataset.
+• It assumes only a few predefined report types.
+• It assumes only predefined diseases.
+• Folder structure is not dynamic.
+• Processing pipeline is tightly coupled to the current dataset.
+• Dashboard queries are slow (7–8 seconds).
+• Database is not optimized.
+• Some workflows are hardcoded.
+• Application is not easily extensible.
+
+Find every similar issue.
+
+===========================================================
+PART 2 — MAKE THE SYSTEM COMPLETELY DYNAMIC
+===========================================================
+
+The application must support ANY patient.
+
+NOT only our current 15 patients.
+
+The application must support
+
+• Any hospital
+• Any department
+• Any patient
+• Any disease
+• Any admission
+• Any encounter
+• Any report type
+• Any laboratory
+• Any radiology report
+• Any document uploaded in future
+
+The system should NOT require code changes every time a new document type appears.
+
+===========================================================
+PART 3 — DOCUMENT TYPES
+===========================================================
+
+Currently we process
+
+CBC
+
+CMP
+
+ABG
+
+Nursing
+
+Radiology
+
+H&P
+
+Discharge
+
+Vitals
+
+This is NOT enough.
+
+Design the application so it can automatically support unknown report types.
+
+Examples
+
+ECG
+
+ECHO
+
+MRI
+
+CT
+
+PET Scan
+
+Ultrasound
+
+Operative Note
+
+Progress Note
+
+Procedure Note
+
+Consultation
+
+Medication Administration Record
+
+Ventilator Report
+
+Dialysis Report
+
+Microbiology
+
+Culture Report
+
+Pathology
+
+Blood Bank
+
+Pharmacy
+
+Insurance Documents
+
+Referral Notes
+
+Any future PDF
+
+If a completely new document type appears,
+
+the application should detect it,
+
+classify it,
+
+store it,
+
+and process it through the correct workflow whenever possible.
+
+If it cannot process the document,
+
+it should safely classify it as Unknown Document,
+
+store it,
+
+and notify the user.
+
+===========================================================
+PART 4 — MULTIPLE FILE UPLOAD
+===========================================================
+
+The UI must support selecting and uploading multiple files at once.
+
+Example
+
+Upload
+
+25 PDFs
+
+5 CSV files
+
+2 Images
+
+All together.
+
+The backend should
+
+Validate every file independently.
+
+Track progress independently.
+
+Retry failed files independently.
+
+Display upload progress.
+
+Display processing progress.
+
+===========================================================
+PART 5 — DYNAMIC PIPELINE
+===========================================================
+
+Current pipeline looks static.
+
+Redesign it.
+
+The pipeline should automatically decide
+
+What type of document was uploaded.
+
+Which parser should run.
+
+Which Azure AI model should be used.
+
+Whether Document Intelligence is needed.
+
+Whether OCR is required.
+
+Whether Clinical Normalizer should run.
+
+Whether Timeline Builder should update.
+
+Whether SOFA should be recalculated.
+
+Whether AI Progress Notes should regenerate.
+
+Everything should be event-driven.
+
+Nothing should be hardcoded.
+
+===========================================================
+PART 6 — PATIENT DATA MODEL
+===========================================================
+
+Current implementation appears dataset-centric.
+
+Redesign it into a patient-centric architecture.
+
+Support
+
+Multiple Admissions
+
+Multiple Encounters
+
+Readmissions
+
+Transfers
+
+ICU
+
+Ward
+
+Emergency
+
+Outpatient
+
+Different hospitals
+
+Different departments
+
+The folder structure should be generated dynamically.
+
+===========================================================
+PART 7 — DATABASE REVIEW
+===========================================================
+
+The dashboard currently takes around
+
+7–8 seconds
+
+to load.
+
+Review the database completely.
+
+Identify why it is slow.
+
+Check
+
+Indexes
+
+Table design
+
+Relationships
+
+Query optimization
+
+N+1 queries
+
+Caching opportunities
+
+Materialized views
+
+Partitioning
+
+Denormalization where appropriate
+
+Recommend everything needed to make dashboard loading nearly instant.
+
+Target
+
+Dashboard load time
+
+< 1 second
+
+===========================================================
+PART 8 — DASHBOARD
+===========================================================
+
+Dashboard should automatically adapt.
+
+If patient has
+
+Radiology
+
+show Radiology.
+
+If patient has no Radiology
+
+hide that section.
+
+If patient has ECG
+
+show ECG.
+
+If patient has Ventilator reports
+
+show Ventilator.
+
+Nothing should be hardcoded.
+
+===========================================================
+PART 9 — BUSINESS SCENARIOS
+===========================================================
+
+List every scenario the system should handle.
+
+Examples
+
+New patient
+
+Existing patient
+
+New encounter
+
+Multiple admissions
+
+Duplicate upload
+
+Corrupted PDF
+
+Password protected PDF
+
+Wrong patient selected
+
+Mixed report upload
+
+Unknown report type
+
+Large files
+
+Partial upload failure
+
+OCR failure
+
+Document Intelligence failure
+
+Database failure
+
+Azure Function retry
+
+Blob duplication
+
+Out-of-order reports
+
+Late-arriving reports
+
+Patient transferred
+
+Patient discharged
+
+Patient readmitted
+
+Report replacement
+
+Manual reprocessing
+
+Any other scenarios you can think of.
+
+===========================================================
+PART 10 — FINAL DELIVERABLE
+===========================================================
+
+Do NOT write code.
+
+First provide
+
+1. Complete architecture review.
+
+2. Every limitation.
+
+3. Every scalability issue.
+
+4. Every dynamic workflow required.
+
+5. Every business scenario.
+
+6. Every database optimization.
+
+7. Every UI improvement.
+
+8. Every Azure architecture improvement.
+
+9. Prioritized implementation roadmap.
+
+10. Explain WHY each recommendation is necessary.
+
+After I review and approve the architecture, we will implement the changes one by one.
