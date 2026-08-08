@@ -1,0 +1,1711 @@
+# PHASE 3 BUILD PROMPT
+# Patient Progress Dashboard — SOFA, Vitals, Laboratory Reports,
+# Radiology, Comparison and AI-Generated Progress Summary
+
+============================================================
+1. PROJECT OBJECTIVE
+============================================================
+
+Build Phase 3 of a hospital patient-progress application.
+
+The purpose of Phase 3 is to allow authorized Doctors and Nurses to
+select a patient_id and admission_id and view the patient's complete
+progress over time.
+
+The dashboard must combine:
+
+1. Patient information
+2. SOFA score and SOFA history
+3. Vitals and vitals trends
+4. Laboratory/report results and report trends
+5. Radiology reports
+6. Radiology images stored in Azure Blob Storage
+7. AI-generated patient progress summary
+
+The application must correlate all information using:
+
+    patient_id
+    admission_id
+    date
+    time
+    report/test identifiers where applicable
+
+The current implementation uses LOCAL files for testing.
+
+Later:
+
+    patient_reports.xlsx -> PostgreSQL
+    vitals.csv           -> PostgreSQL
+    sofa_scores.csv      -> PostgreSQL
+
+The UI/data-access layer must be designed so that moving from local
+files to PostgreSQL requires minimal code changes.
+
+============================================================
+2. USER ROLES / LOGIN
+============================================================
+
+There are different application roles.
+
+PHASE 1 + PHASE 2:
+
+    Hospital Admin
+    Lab User
+
+These users upload/process patient reports and vitals.
+
+PHASE 3:
+
+    Doctor
+    Nurse
+
+Doctors and nurses can view patient progress and analysis.
+
+For Phase 3 implement role-aware access.
+
+Only authorized Doctor/Nurse users should be able to access the
+patient-progress dashboard.
+
+Do not expose administrative upload functionality inside the Phase 3
+dashboard.
+
+Keep authentication/authorization modular so Azure Entra ID / RBAC
+can be integrated later.
+
+For local development, provide a simple mock authentication mechanism
+or role selector.
+
+============================================================
+3. CURRENT DATA SOURCES
+============================================================
+
+The current local project structure is:
+
+result_data/
+│
+├── patient_reports.xlsx
+├── vitals.csv
+└── radiology_reports.json
+
+Radiology images are stored in Azure Blob Storage.
+
+------------------------------------------------------------
+3.1 patient_reports.xlsx
+------------------------------------------------------------
+
+Columns:
+
+    patient_id
+    admission_id
+    report_type
+    report_date
+    report_time
+    test_name
+    result
+    unit
+    reference_low
+    reference_high
+    flag
+
+Example:
+
+    patient_id = P10001
+    admission_id = Admission_001
+    report_type = CBC
+    report_date = 2026-07-10
+    report_time = 09:00
+    test_name = Platelets
+    result = 123
+    unit = x10^3/uL
+
+This file contains laboratory/report measurements.
+
+It will later be stored in PostgreSQL.
+
+------------------------------------------------------------
+3.2 vitals.csv
+------------------------------------------------------------
+
+Columns:
+
+    patient_id
+    admission_id
+    date
+    time
+    respiratoryrate_bpm
+    systolicbp_mmHg
+    diastolicbp_mmHg
+    map_mmHg
+    temperature_c
+    spo2_percent
+    oxygendevice
+    painscore
+    urineoutput_ml_hr
+    gcs
+
+This contains time-series patient vitals.
+
+It will later be stored in PostgreSQL.
+
+------------------------------------------------------------
+3.3 radiology_reports.json
+------------------------------------------------------------
+
+Example:
+
+[
+  {
+    "patient_id": "000914327",
+    "admission_id": "V2026-7624039",
+    "collected_date": "2026-06-21",
+    "collected_time": "09:00 EDT",
+    "report_type": "Radiology Report",
+    "report_name": "CT ABDOMEN/PELVIS W/ CONTRAST",
+    "text": "EXAM\n...\nINDICATION\n...\nTECHNIQUE\n...\nCOMPARISON\n...\nFINDINGS\n...\nIMPRESSION\n..."
+  }
+]
+
+The radiology JSON is NOT stored in a vector database at this stage.
+
+Perform direct lookup using:
+
+    patient_id + admission_id
+
+The text should be parsed into:
+
+    Exam
+    Indication
+    Technique
+    Comparison
+    Findings
+    Impression
+
+If one or more sections cannot be identified, gracefully fall back to
+displaying the available raw text.
+
+============================================================
+4. RADIOLOGY IMAGES
+============================================================
+
+Radiology images are stored in Azure Blob Storage.
+
+Example:
+
+https://<storage-account>.blob.core.windows.net/
+radiology-report/
+001338276/
+2026-1810111/
+RadiologyImages/
+2026-07-08/
+22:00/
+XR_CHEST_PORTABLE_AR_img_1.png
+
+Blob hierarchy:
+
+radiology-report
+│
+├── patient_id
+│     ├── admission_id
+│           ├── RadiologyImages
+│                 ├── report_date
+│                       ├── report_time
+│                             ├── image files
+
+Example:
+
+radiology-report/
+└── 001338276/
+    └── 2026-1810111/
+        └── RadiologyImages/
+            └── 2026-07-08/
+                └── 22:00/
+                    ├── XR_CHEST_PORTABLE_AR_img_1.png
+                    └── XR_CHEST_PORTABLE_AR_img_2.png
+
+The Phase 3 application must retrieve/display radiology images for the
+selected patient_id + admission_id.
+
+Do not download and permanently copy images into the local project.
+
+Use Azure Blob Storage access.
+
+Prefer secure access such as SAS URLs or another authenticated mechanism
+rather than exposing storage credentials in frontend code.
+
+============================================================
+5. DATA ACCESS LAYER
+============================================================
+
+Create a centralized data-access/service layer.
+
+Example:
+
+src/
+│
+├── services/
+│   ├── dataService
+│   ├── patientReportService
+│   ├── vitalsService
+│   ├── sofaService
+│   ├── radiologyService
+│   └── blobService
+│
+├── components/
+├── pages/
+├── utils/
+└── types/
+
+The UI must NEVER directly read:
+
+    patient_reports.xlsx
+    vitals.csv
+    radiology_reports.json
+
+Instead use functions such as:
+
+    getPatientReports(patientId, admissionId)
+    getVitals(patientId, admissionId)
+    getRadiology(patientId, admissionId)
+    getRadiologyImages(patientId, admissionId)
+    getSofaHistory(patientId, admissionId)
+    getPatientInformation(patientId, admissionId)
+
+For now these functions read local files.
+
+Later they will read PostgreSQL.
+
+Therefore the UI should not need major changes when the database changes.
+
+============================================================
+6. PATIENT + ADMISSION SELECTION
+============================================================
+
+The first major control in the Phase 3 dashboard is:
+
+    Patient ID
+    Admission ID
+
+The user selects:
+
+    patient_id
+    admission_id
+
+This selection becomes the global filter for the entire dashboard.
+
+Once selected, ALL sections must update:
+
+    Patient information
+    SOFA
+    SOFA history
+    Vitals
+    Laboratory reports
+    Radiology reports
+    Radiology images
+    AI summary
+
+Never mix data between patients or admissions.
+
+Always filter using BOTH:
+
+    patient_id
+    admission_id
+
+============================================================
+7. SOFA SCORE ENGINE
+============================================================
+
+Implement a deterministic SOFA calculation engine.
+
+SOFA consists of six organ systems:
+
+    1. Respiration
+    2. Coagulation
+    3. Liver
+    4. Cardiovascular
+    5. CNS
+    6. Renal
+
+The SOFA engine must never determine a variable from a numeric value
+alone.
+
+It must:
+
+    1. Match test_name
+    2. Read result
+    3. Read unit
+    4. Validate/normalize unit
+    5. Evaluate the correct SOFA rule
+    6. Return the score and evidence
+
+Evaluate each system from:
+
+    Score 4
+    Score 3
+    Score 2
+    Score 1
+    Score 0
+
+Take the first matching condition.
+
+------------------------------------------------------------
+7.1 RESPIRATION
+------------------------------------------------------------
+
+Variable:
+
+    PaO2/FiO2 Ratio
+
+Unit:
+
+    mmHg
+
+Rules:
+
+    0: >400
+    1: <=400
+    2: <=300
+    3: <=200 WITH respiratory support
+    4: <=100 WITH respiratory support
+
+Respiratory support is represented by a row in patient_reports.xlsx.
+
+The exact test_name should be configurable.
+
+If respiratory support is not positive, do not apply the support-dependent
+Score 3 and Score 4 conditions.
+
+------------------------------------------------------------
+7.2 COAGULATION
+------------------------------------------------------------
+
+Variable:
+
+    Platelets
+
+Unit:
+
+    x10^3/uL
+
+Rules:
+
+    0: >=150
+    1: <150
+    2: <100
+    3: <50
+    4: <20
+
+------------------------------------------------------------
+7.3 LIVER
+------------------------------------------------------------
+
+Variable:
+
+    Bilirubin
+
+Unit:
+
+    mg/dL
+
+Rules:
+
+    0: <1.2
+    1: 1.2-1.9
+    2: 2.0-5.9
+    3: 6.0-11.9
+    4: >=12.0
+
+------------------------------------------------------------
+7.4 CARDIOVASCULAR
+------------------------------------------------------------
+
+Inputs:
+
+    MAP
+    Dopamine
+    Dobutamine
+    Norepinephrine
+    Epinephrine
+
+MAP source:
+
+    vitals.map_mmHg
+
+Vasopressor source:
+
+    patient_reports.xlsx
+
+Vasopressor unit:
+
+    validate expected dose unit before comparison
+
+Rules:
+
+    0: MAP >=70
+    1: MAP <70
+    2: Dopamine <=5 or Dobutamine any dose
+    3: Dopamine >5 or Norepinephrine/Epinephrine <=0.1
+    4: Dopamine >15 or Norepinephrine/Epinephrine >0.1
+
+Calculate the cardiovascular score independently from:
+
+    MAP
+
+and
+
+    vasopressor data
+
+Then use the WORST/HIGHEST applicable score.
+
+------------------------------------------------------------
+7.5 CNS
+------------------------------------------------------------
+
+Variable:
+
+    GCS
+
+Source:
+
+    vitals.gcs
+
+Rules:
+
+    0: 15
+    1: 13-14
+    2: 10-12
+    3: 6-9
+    4: <6
+
+------------------------------------------------------------
+7.6 RENAL
+------------------------------------------------------------
+
+Inputs:
+
+    Creatinine
+    Urine Output
+
+Creatinine source:
+
+    patient_reports.xlsx
+
+Urine output source:
+
+    vitals.csv
+
+Creatinine rules:
+
+    0: <1.2
+    1: 1.2-1.9
+    2: 2.0-3.4
+    3: 3.5-4.9
+    4: >=5.0
+
+Urine output:
+
+    3: <500 mL/day
+    4: <200 mL/day
+
+If both creatinine and urine output are available:
+
+    renal_score =
+        max(creatinine_score, urine_output_score)
+
+============================================================
+8. SOFA FOUR-HOUR WINDOWS
+============================================================
+
+Calculate SOFA every 4 hours.
+
+The windows are anchored to the patient's admission first recorded
+observation.
+
+Example:
+
+    Admission start = 08:00
+
+Windows:
+
+    Window 1: 08:00 - 12:00
+    Window 2: 12:00 - 16:00
+    Window 3: 16:00 - 20:00
+    Window 4: 20:00 - 00:00
+
+Continue throughout the admission.
+
+------------------------------------------------------------
+8.1 CARRY-FORWARD RULE
+------------------------------------------------------------
+
+For each 4-hour window, select:
+
+    The most recent known value at or before the window END time.
+
+Example:
+
+    Platelets at 09:00 = 123
+    No platelet result at 12:00
+
+For the 08:00-12:00 SOFA window:
+
+    Use Platelets = 123
+
+If the next result occurs at 15:00:
+
+    The 12:00-16:00 window can use the 15:00 value.
+
+Carry forward the most recent available value as long as it belongs
+to the same patient + admission.
+
+Do not use values from another admission.
+
+------------------------------------------------------------
+8.2 MISSING ORGAN SYSTEM
+------------------------------------------------------------
+
+If an organ system has never had any required value recorded as of
+that SOFA window:
+
+    Mark that organ system as NOT AVAILABLE.
+
+Do NOT automatically assign score 0.
+
+The UI must clearly show:
+
+    Available
+    Not Available / Missing
+
+Only calculate/display a total SOFA score when there is enough data
+according to the application's missing-data policy.
+
+The calculation must preserve the difference between:
+
+    "normal value"
+
+and
+
+    "no data available"
+
+============================================================
+9. SOFA HISTORY STORAGE
+============================================================
+
+For local testing create:
+
+    result_data/sofa_scores.csv
+
+Later create PostgreSQL table:
+
+    sofa_scores
+
+Columns:
+
+    patient_id
+    admission_id
+    window_start
+    window_end
+    sofa_total
+
+Component scores:
+
+    respiration_score
+    coagulation_score
+    liver_score
+    cardio_score
+    cns_score
+    renal_score
+
+Traceability fields:
+
+    respiration_test_name
+    respiration_result
+    respiration_unit
+
+    coagulation_test_name
+    coagulation_result
+    coagulation_unit
+
+    liver_test_name
+    liver_result
+    liver_unit
+
+    cardio_source
+    cardio_result
+    cardio_unit
+
+    cns_result
+    cns_unit
+
+    renal_source
+    renal_result
+    renal_unit
+
+The application must save every calculated SOFA window.
+
+This allows:
+
+    Current SOFA vs Previous SOFA
+
+and SOFA trend visualization.
+
+============================================================
+10. SOFA UI
+============================================================
+
+Create a SOFA Score Card.
+
+Show:
+
+    Current SOFA Score
+    Previous SOFA Score
+    Change
+    Trend
+
+Example:
+
+    SOFA Score
+        8
+
+    Previous:
+        10
+
+    Change:
+        -2
+
+Also show the six components:
+
+    Respiration      2
+    Coagulation      1
+    Liver            2
+    Cardiovascular   1
+    CNS              1
+    Renal            1
+
+Each component should be expandable/clickable to show:
+
+    test_name
+    result
+    unit
+    timestamp
+    score
+    threshold used
+    whether value was carried forward
+
+This makes the SOFA calculation explainable.
+
+============================================================
+11. VITALS COMPARISON
+============================================================
+
+Use vitals.csv as the source.
+
+Display:
+
+    Respiratory Rate
+    Systolic BP
+    Diastolic BP
+    MAP
+    Temperature
+    SpO2
+    Oxygen Device
+    Pain Score
+    Urine Output
+    GCS
+
+Create trend charts.
+
+Compare:
+
+    Current values
+    Previous values
+
+Use timestamps on the X-axis.
+
+The user must be able to select:
+
+    6 HOURS
+    12 HOURS
+    18 HOURS
+    24 HOURS
+
+These must be BUTTONS, not a dropdown.
+
+============================================================
+12. REPORT COMPARISON
+============================================================
+
+Use patient_reports.xlsx.
+
+For each test_name:
+
+    Current result
+    Previous result
+    Difference
+    Unit
+    Reference range
+    Flag
+    Trend
+
+Example:
+
+    WBC
+    Current: 14.2
+    Previous: 12.8
+    Trend: Increased
+
+Compare reports using:
+
+    patient_id
+    admission_id
+    test_name
+    timestamp
+
+The system should identify the previous available result for the
+same test_name.
+
+Do not compare unrelated tests.
+
+The trend engine should be configurable because some tests have
+different clinical interpretations.
+
+For example:
+
+    Higher-is-worse
+    Lower-is-worse
+    Context-dependent
+
+Do not hard-code a medical interpretation without a configurable rule.
+
+============================================================
+13. REPORT TIME WINDOW
+============================================================
+
+Provide buttons:
+
+    [ 6h ] [ 12h ] [ 18h ] [ 24h ]
+
+The selected window applies to:
+
+    Vitals comparison
+    Laboratory report comparison
+
+The window is relative to the most recent available timestamp for the
+selected patient + admission.
+
+Example:
+
+Latest data:
+
+    2026-07-10 18:00
+
+24h window:
+
+    2026-07-09 18:00
+    through
+    2026-07-10 18:00
+
+12h window:
+
+    2026-07-10 06:00
+    through
+    2026-07-10 18:00
+
+6h window:
+
+    2026-07-10 12:00
+    through
+    2026-07-10 18:00
+
+Do NOT use the current system clock as the reference.
+
+============================================================
+14. RADIOLOGY SECTION
+============================================================
+
+If radiology data exists for the selected:
+
+    patient_id
+    admission_id
+
+show a Radiology section.
+
+Retrieve the radiology report from:
+
+    radiology_reports.json
+
+Parse:
+
+    EXAM
+    INDICATION
+    TECHNIQUE
+    COMPARISON
+    FINDINGS
+    IMPRESSION
+
+Display each section separately.
+
+Example:
+
+    Radiology Report
+    ----------------
+
+    Exam:
+    CT ABDOMEN/PELVIS W/ CONTRAST
+
+    Indication:
+    ...
+
+    Technique:
+    ...
+
+    Comparison:
+    ...
+
+    Findings:
+    ...
+
+    Impression:
+    ...
+
+If the section cannot be parsed:
+
+    Show the raw radiology text.
+
+============================================================
+15. RADIOLOGY IMAGE DISPLAY
+============================================================
+
+For the selected patient + admission:
+
+    Find matching radiology report
+    Get report date
+    Get report time
+    Get report name
+    Construct/search corresponding Blob path
+    Retrieve image URL
+    Display image
+
+Example:
+
+    patient_id
+        +
+    admission_id
+        +
+    report_date
+        +
+    report_time
+        +
+    report_name
+
+must map to the radiology images.
+
+Display:
+
+    Image gallery
+    Image viewer
+    Previous/Next controls if multiple images exist
+
+Do not store the image binary in PostgreSQL.
+
+Images remain in Azure Blob Storage.
+
+============================================================
+16. PATIENT INFORMATION
+============================================================
+
+Create a patient information header.
+
+Display where data is available:
+
+    Patient ID
+    Admission ID
+    Patient Name
+    Age
+    Gender
+    Diagnosis
+    Admission Date
+    Discharge Date
+    Physician
+
+IMPORTANT:
+
+The current data files provided do not contain all demographic fields.
+
+Do NOT invent demographic data.
+
+Create a patient information interface/service so a future
+patient_master table or API can provide these fields.
+
+For now:
+
+    Patient ID
+    Admission ID
+
+must always be available.
+
+Other fields should show:
+
+    "Not available"
+
+until a real data source is connected.
+
+============================================================
+17. AI-GENERATED PROGRESS SUMMARY
+============================================================
+
+Create an AI-generated Progress Summary in the LEFT SIDEBAR.
+
+Location:
+
+    Patient / Admission selector
+            ↓
+    6h / 12h / 18h / 24h buttons
+            ↓
+    AI Progress Summary
+
+The summary must use data for ONLY the selected:
+
+    patient_id
+    admission_id
+    time window
+
+Ground the summary in:
+
+    SOFA trend
+    Vital trends
+    Laboratory/report trends
+    Radiology impression
+    Relevant radiology findings
+
+The AI must never invent:
+
+    patient values
+    diagnoses
+    test results
+    radiology findings
+    clinical events
+
+Every generated statement must be traceable to retrieved data.
+
+------------------------------------------------------------
+17.1 INITIAL IMPLEMENTATION
+------------------------------------------------------------
+
+First implement a deterministic summary generator.
+
+Example structure:
+
+    Patient Progress Summary
+
+    SOFA:
+    Current = 8
+    Previous = 10
+    Change = -2
+
+    Vitals:
+    SpO2 changed from X to Y.
+    MAP changed from X to Y.
+
+    Laboratory:
+    WBC changed from X to Y.
+    Creatinine changed from X to Y.
+
+    Radiology:
+    Latest impression: ...
+
+Then optionally add an LLM service.
+
+Design:
+
+    generateProgressSummary(data)
+
+The function can initially use deterministic logic.
+
+Later:
+
+    generateProgressSummary(data)
+            ↓
+        Azure OpenAI / LLM
+
+Do not make the application dependent on an LLM API key during
+initial development.
+
+============================================================
+18. MAIN UI LAYOUT
+============================================================
+
+Design a professional hospital/clinical dashboard.
+
+------------------------------------------------------------
+LEFT SIDEBAR
+------------------------------------------------------------
+
+1. Patient ID selector
+
+2. Admission ID selector
+
+3. Time window:
+
+    [6h] [12h] [18h] [24h]
+
+4. AI-generated Progress Summary
+
+------------------------------------------------------------
+MAIN PANEL
+------------------------------------------------------------
+
+Patient Header
+
+    Patient ID
+    Admission ID
+    Demographics
+    Diagnosis
+
+------------------------------------------------------------
+
+SOFA SCORE
+
+    Current SOFA
+    Previous SOFA
+    Change
+    Trend
+
+    Six organ-system breakdown
+
+------------------------------------------------------------
+
+VITALS
+
+    Current vitals table
+
+    Trend charts:
+
+        Respiratory Rate
+        BP
+        MAP
+        Temperature
+        SpO2
+        Pain
+        Urine Output
+        GCS
+
+------------------------------------------------------------
+
+LABORATORY / PATIENT REPORTS
+
+    Current vs Previous
+
+    test_name
+    current value
+    previous value
+    unit
+    reference range
+    flag
+    trend
+
+------------------------------------------------------------
+
+RADIOLOGY
+
+    Radiology report information
+
+        Exam
+        Indication
+        Technique
+        Comparison
+        Findings
+        Impression
+
+    Radiology image viewer
+
+------------------------------------------------------------
+19. DATA FLOW
+============================================================
+
+Overall Phase 3 flow:
+
+Doctor / Nurse
+      |
+      v
+Login / Authorization
+      |
+      v
+Select Patient ID + Admission ID
+      |
+      v
+Data Access Layer
+      |
+      +--------------------+
+      |                    |
+      v                    v
+Patient Reports         Vitals
+Excel                   CSV
+      |                    |
+      +---------+----------+
+                |
+                v
+          SOFA Engine
+                |
+                v
+          SOFA History
+                |
+                v
+        Comparison Engine
+                |
+      +---------+----------+
+      |         |          |
+      v         v          v
+   Vitals    Reports    SOFA Trend
+   Trend     Trend
+      |
+      +----------------------+
+                             |
+                             v
+                    Progress Summary
+                             |
+                             v
+                       Doctor/Nurse UI
+
+
+Radiology flow:
+
+Patient ID + Admission ID
+          |
+          +--------------------------+
+          |                          |
+          v                          v
+radiology_reports.json        Azure Blob Storage
+          |                          |
+          v                          v
+Radiology text               Radiology images
+          |                          |
+          +-------------+------------+
+                        |
+                        v
+                 Radiology UI
+                        |
+                        v
+                AI Progress Summary
+
+============================================================
+20. IMPORTANT DATA-MAPPING RULE
+============================================================
+
+The following data sources must be correlated.
+
+                patient_id
+                     +
+                admission_id
+                     +
+                  timestamp
+
+                    |
+       +------------+------------+
+       |            |            |
+       v            v            v
+
+ patient_reports  vitals    radiology_reports
+       |            |            |
+       |            |            |
+       v            v            v
+    SQL later    SQL later     JSON
+       |
+       v
+ SOFA + Comparison
+
+
+Radiology images:
+
+    patient_id
+    admission_id
+    report_date
+    report_time
+    report_name
+
+            |
+            v
+
+    Azure Blob Storage
+
+This correlation is critical.
+
+Never mix:
+
+    Patient A + Patient B data
+
+or:
+
+    Admission 001 + Admission 002 data
+
+even if the patient_id is the same.
+
+============================================================
+21. NO NEO4J REQUIRED
+============================================================
+
+Do NOT introduce Neo4j for this Phase 3 implementation.
+
+The relationships needed for this application are primarily based on:
+
+    patient_id
+    admission_id
+    timestamps
+    test_name
+    report identifiers
+
+These can be handled by the data-access layer and PostgreSQL queries
+when the system migrates to PostgreSQL.
+
+The architecture should be:
+
+    PostgreSQL
+        |
+        +-- Patient reports
+        +-- Vitals
+        +-- SOFA history
+        +-- Patient information
+        |
+        +----------------+
+                         |
+                         v
+                  Phase 3 API
+                         |
+             +-----------+-----------+
+             |           |           |
+             v           v           v
+          SOFA       Comparison   Summary
+          Engine      Engine       Engine
+
+Radiology:
+
+    JSON + Azure Blob Storage
+
+No graph database is required for this use case.
+
+============================================================
+22. FUTURE POSTGRESQL ARCHITECTURE
+============================================================
+
+Design the current local data-access layer so it can later become:
+
+    PostgreSQL
+
+Tables:
+
+    patient_reports
+    vitals
+    sofa_scores
+    patient_information
+
+Example relationship:
+
+patient_information
+        |
+        | patient_id + admission_id
+        |
+        +-------------------+
+        |                   |
+        v                   v
+patient_reports          vitals
+        |                   |
+        +---------+---------+
+                  |
+                  v
+             sofa_scores
+
+Radiology remains:
+
+    radiology_reports.json
+    +
+    Azure Blob Storage
+
+until a future migration is decided.
+
+============================================================
+23. ERROR HANDLING
+============================================================
+
+Implement graceful fallback behavior.
+
+Examples:
+
+Missing patient_reports:
+
+    Show:
+    "Laboratory report data unavailable."
+
+Missing vitals:
+
+    Show:
+    "Vitals data unavailable."
+
+Missing SOFA variable:
+
+    Show:
+    "Data unavailable for this organ system."
+
+Missing radiology report:
+
+    Hide radiology report section.
+
+Missing radiology images:
+
+    Show:
+    "Radiology images unavailable."
+
+Missing demographic data:
+
+    Show:
+    "Not available."
+
+Malformed JSON:
+
+    Log error
+    Do not crash dashboard
+    Show appropriate fallback
+
+Invalid/missing timestamps:
+
+    Log warning
+    Exclude invalid record from time-series calculations
+
+Never crash the entire dashboard because one data source is missing.
+
+============================================================
+24. SECURITY
+============================================================
+
+Patient data is sensitive.
+
+Do not:
+
+    Hard-code credentials
+    Hard-code Azure Storage keys
+    Expose connection strings in frontend code
+    Log sensitive patient information unnecessarily
+
+Use environment variables for development.
+
+Example:
+
+    .env
+
+Use:
+
+    Azure identity / Entra ID
+    RBAC
+    Secure Blob access
+    Backend-controlled data access
+
+when moving toward production.
+
+============================================================
+25. CLINICAL SAFETY
+============================================================
+
+This application is a clinical decision-support/progress visualization
+prototype.
+
+Do not present generated summaries as autonomous medical diagnoses.
+
+The UI should clearly distinguish:
+
+    Raw patient data
+    Calculated SOFA score
+    Trend analysis
+    AI-generated summary
+
+The AI summary must be grounded in actual retrieved data.
+
+Do not invent missing clinical information.
+
+============================================================
+26. TECHNICAL REQUIREMENTS
+============================================================
+
+Build the application using a clean modular architecture.
+
+Recommended separation:
+
+    UI
+      |
+    API / Controller
+      |
+    Service Layer
+      |
+    Data Access Layer
+      |
+    Local Files / PostgreSQL / Azure Blob
+
+Keep business logic out of UI components.
+
+Create reusable functions for:
+
+    SOFA calculation
+    Time-window filtering
+    Carry-forward calculation
+    Report comparison
+    Vitals comparison
+    Radiology parsing
+    Blob image retrieval
+    Progress summary generation
+
+============================================================
+27. TESTING REQUIREMENTS
+============================================================
+
+Create tests for:
+
+1. Patient + admission filtering
+2. SOFA calculations
+3. SOFA 4-hour windows
+4. Carry-forward values
+5. Missing organ systems
+6. Unit validation
+7. Vitals comparison
+8. Report comparison
+9. 6h window
+10. 12h window
+11. 18h window
+12. 24h window
+13. Radiology JSON parsing
+14. Patient/admission radiology matching
+15. Blob image path generation
+16. Missing data
+17. Invalid data
+18. Multiple admissions for same patient
+
+Example:
+
+Input:
+
+    patient_id = P10001
+    admission_id = Admission_001
+    Platelets = 123
+    unit = x10^3/uL
+
+Expected:
+
+    Coagulation score = 1
+
+Example:
+
+    PaO2/FiO2 = 236
+    unit = mmHg
+
+Expected:
+
+    Respiration score = 2
+    when respiratory-support criteria do not change the applicable tier.
+
+============================================================
+28. EXPECTED RESULT
+============================================================
+
+Build a working Phase 3 dashboard where:
+
+    Doctor/Nurse logs in
+             |
+             v
+    Selects Patient ID
+             |
+             v
+    Selects Admission ID
+             |
+             v
+    Selects 6h / 12h / 18h / 24h
+             |
+             v
+    Dashboard loads all matching data
+             |
+      +------+------+------+------+
+      |      |      |      |
+      v      v      v      v
+    SOFA   Vitals Reports Radiology
+      |      |      |       |
+      |      |      |       +--> Images from Blob
+      |      |      |
+      |      |      +----------> Current vs Previous
+      |      |
+      |      +-----------------> Trend comparison
+      |
+      +------------------------> Current vs Previous SOFA
+                                   |
+                                   v
+                          AI Progress Summary
+
+The final dashboard should allow a doctor/nurse to understand:
+
+    "How is this patient progressing compared with earlier data?"
+
+using:
+
+    SOFA trend
+    Vital trends
+    Laboratory trends
+    Radiology findings
+    Radiology images
+    Patient/admission context
+
+All information must correspond to the selected patient_id +
+admission_id.
+
+============================================================
+29. IMPORTANT IMPLEMENTATION ORDER
+============================================================
+
+Implement in this order:
+
+STEP 1
+Set up project structure.
+
+STEP 2
+Create data-access layer for:
+
+    patient_reports.xlsx
+    vitals.csv
+    radiology_reports.json
+
+STEP 3
+Implement patient_id + admission_id filtering.
+
+STEP 4
+Implement SOFA engine.
+
+STEP 5
+Implement 4-hour SOFA windows.
+
+STEP 6
+Implement carry-forward logic.
+
+STEP 7
+Generate sofa_scores.csv.
+
+STEP 8
+Build SOFA dashboard.
+
+STEP 9
+Build vitals comparison.
+
+STEP 10
+Build laboratory report comparison.
+
+STEP 11
+Build 6h/12h/18h/24h filtering.
+
+STEP 12
+Build radiology JSON parser.
+
+STEP 13
+Build Azure Blob radiology image retrieval.
+
+STEP 14
+Build radiology UI.
+
+STEP 15
+Build deterministic AI progress summary.
+
+STEP 16
+Add role-based login/mock authentication.
+
+STEP 17
+Add error handling and validation.
+
+STEP 18
+Add unit/integration tests.
+
+STEP 19
+Keep PostgreSQL migration in mind without changing the UI.
+
+============================================================
+30. FINAL ARCHITECTURE
+============================================================
+
+Current:
+
+                    PHASE 3
+
+                Doctor / Nurse
+                     |
+                     v
+               Authentication
+                     |
+                     v
+          Patient + Admission Selection
+                     |
+                     v
+                Phase 3 API
+                     |
+          +----------+----------+
+          |          |          |
+          v          v          v
+     patient_     vitals     radiology
+     reports      .csv       reports.json
+       .xlsx
+          |          |          |
+          +----------+----------+
+                     |
+                     v
+                SOFA Engine
+                     |
+                     v
+              sofa_scores.csv
+                     |
+          +----------+----------+
+          |          |          |
+          v          v          v
+       SOFA       Vitals      Report
+       Trend      Trend       Trend
+          |          |          |
+          +----------+----------+
+                     |
+                     v
+              Progress Summary
+                     |
+                     v
+                Doctor/Nurse UI
+
+Radiology:
+
+    radiology_reports.json
+             |
+             +-----> Text sections
+             |
+             +-----> Exam
+             +-----> Indication
+             +-----> Technique
+             +-----> Comparison
+             +-----> Findings
+             +-----> Impression
+
+
+    Azure Blob Storage
+             |
+             v
+       Radiology Images
+             |
+             v
+       Doctor/Nurse UI
+
+
+FUTURE:
+
+    patient_reports.xlsx ──────┐
+    vitals.csv ────────────────┤
+    sofa_scores.csv ───────────┤
+                               v
+                         PostgreSQL
+                               |
+                               v
+                         Phase 3 API
+                               |
+                               v
+                          Dashboard
+
+
+IMPORTANT:
+Do not use Neo4j.
+
+The application should use patient_id + admission_id + timestamps
+as the primary correlation mechanism between patient reports, vitals,
+SOFA scores, radiology reports and radiology images.
